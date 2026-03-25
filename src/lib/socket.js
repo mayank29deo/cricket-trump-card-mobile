@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client'
 
 export const PRIMARY_URL = process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3001'
-export const FALLBACK_URL = process.env.EXPO_PUBLIC_SERVER_FALLBACK_URL || null
+export const FALLBACK_URL = 'https://cricket-trump-card.onrender.com'
 
 let socket = null
 let activeUrl = PRIMARY_URL
