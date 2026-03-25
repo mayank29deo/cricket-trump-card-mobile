@@ -8,7 +8,7 @@ export const getSocket = () => {
   if (!socket) {
     socket = io(SOCKET_URL, {
       autoConnect: false,
-      transports: ['polling'],
+      transports: ['websocket', 'polling'], // websocket first — bypasses mobile carrier proxies
       timeout: 10000,
       reconnection: true,
       reconnectionAttempts: 10,
