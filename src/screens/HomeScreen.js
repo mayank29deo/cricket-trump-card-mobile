@@ -29,6 +29,7 @@ export default function HomeScreen({ navigation }) {
   const [timeOption, setTimeOption] = useState(6)
   const [tab, setTab] = useState('create') // 'create' | 'join'
   const [loading, setLoading] = useState(false)
+  const [loadingMsg, setLoadingMsg] = useState('Connecting...')
 
   const { setRoom, setIdentity, myId, myName } = useGameStore()
 
@@ -36,6 +37,7 @@ export default function HomeScreen({ navigation }) {
 
   const withPreflight = async (action) => {
     setLoading(true)
+    setLoadingMsg('Connecting...')
 
     // Try primary server (Railway — fast on WiFi)
     let workingUrl = null
@@ -49,9 +51,10 @@ export default function HomeScreen({ navigation }) {
 
     // Try fallback server (Render — works on cellular)
     if (!workingUrl && FALLBACK_URL) {
+      setLoadingMsg('Waking up server... (~30s)')
       try {
         const ctrl = new AbortController()
-        const t = setTimeout(() => ctrl.abort(), 15000)
+        const t = setTimeout(() => ctrl.abort(), 60000)
         const res = await fetch(`${FALLBACK_URL}/health`, { signal: ctrl.signal })
         clearTimeout(t)
         if (res.ok) workingUrl = FALLBACK_URL
@@ -221,7 +224,7 @@ export default function HomeScreen({ navigation }) {
               disabled={loading}
             >
               {loading
-                ? <ActivityIndicator color="#000" />
+                ? <Text style={[styles.btnText, { fontSize: 12 }]}>{loadingMsg}</Text>
                 : <Text style={styles.btnText}>{tab === 'create' ? 'CREATE ROOM' : 'JOIN ROOM'}</Text>}
             </TouchableOpacity>
           </View>
