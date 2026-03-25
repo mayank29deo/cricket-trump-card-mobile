@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   SafeAreaView, StatusBar, Alert, ActivityIndicator, KeyboardAvoidingView, Platform
 } from 'react-native'
-import { connectSocket, getSocket, resetSocket, SOCKET_URL } from '../lib/socket'
+import { connectSocket, getSocket, resetSocket, PRIMARY_URL, FALLBACK_URL, setActiveUrl } from '../lib/socket'
 import useGameStore from '../store/gameStore'
 
 const COLORS = {
@@ -36,17 +36,40 @@ export default function HomeScreen({ navigation }) {
 
   const withPreflight = async (action) => {
     setLoading(true)
+
+    // Try primary server (Railway — fast on WiFi)
+    let workingUrl = null
     try {
       const ctrl = new AbortController()
-      const timer = setTimeout(() => ctrl.abort(), 8000)
-      const res = await fetch(`${SOCKET_URL}/health`, { signal: ctrl.signal })
-      clearTimeout(timer)
-      if (!res.ok) throw new Error('unhealthy')
-    } catch {
+      const t = setTimeout(() => ctrl.abort(), 6000)
+      const res = await fetch(`${PRIMARY_URL}/health`, { signal: ctrl.signal })
+      clearTimeout(t)
+      if (res.ok) workingUrl = PRIMARY_URL
+    } catch { /* try fallback */ }
+
+    // Try fallback server (Render — works on cellular)
+    if (!workingUrl && FALLBACK_URL) {
+      try {
+        const ctrl = new AbortController()
+        const t = setTimeout(() => ctrl.abort(), 15000)
+        const res = await fetch(`${FALLBACK_URL}/health`, { signal: ctrl.signal })
+        clearTimeout(t)
+        if (res.ok) workingUrl = FALLBACK_URL
+      } catch { /* both failed */ }
+    }
+
+    if (!workingUrl) {
       setLoading(false)
-      Alert.alert('Network Error', 'Cannot reach the server on this connection. Try WiFi or check your internet.')
+      Alert.alert('Network Error', 'Cannot reach the server. Please check your internet connection.')
       return
     }
+
+    // Switch socket to fallback URL if needed
+    if (workingUrl !== PRIMARY_URL) {
+      resetSocket()
+      setActiveUrl(workingUrl)
+    }
+
     action()
   }
 
