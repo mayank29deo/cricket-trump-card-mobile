@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   SafeAreaView, StatusBar, Alert, ActivityIndicator, KeyboardAvoidingView, Platform
 } from 'react-native'
-import { connectSocket, getSocket, resetSocket } from '../lib/socket'
+import { connectSocket, getSocket, resetSocket, SOCKET_URL } from '../lib/socket'
 import useGameStore from '../store/gameStore'
 
 const COLORS = {
@@ -34,36 +34,53 @@ export default function HomeScreen({ navigation }) {
 
   const playerId = myId || Math.random().toString(36).slice(2)
 
+  const withPreflight = async (action) => {
+    setLoading(true)
+    try {
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 8000)
+      const res = await fetch(`${SOCKET_URL}/health`, { signal: ctrl.signal })
+      clearTimeout(timer)
+      if (!res.ok) throw new Error('unhealthy')
+    } catch {
+      setLoading(false)
+      Alert.alert('Network Error', 'Cannot reach the server on this connection. Try WiFi or check your internet.')
+      return
+    }
+    action()
+  }
+
   const handleCreate = () => {
     const playerName = name.trim()
     if (!playerName) { Alert.alert('Enter your name'); return }
-    setLoading(true)
     setIdentity(playerId, playerName)
 
-    const socket = connectSocket()
-    const timeout = setTimeout(() => {
-      setLoading(false)
-      Alert.alert('Connection failed', 'Server took too long to respond.')
-    }, 15000)
+    withPreflight(() => {
+      const socket = connectSocket()
+      const timeout = setTimeout(() => {
+        setLoading(false)
+        Alert.alert('Connection failed', 'Server took too long to respond.')
+      }, 20000)
 
-    socket.once('room_created', ({ room }) => {
-      clearTimeout(timeout)
-      setLoading(false)
-      setRoom(room.code, room, playerId)
-      navigation.navigate('Lobby', { roomCode: room.code })
-    })
-    socket.once('error', ({ message }) => {
-      clearTimeout(timeout)
-      setLoading(false)
-      Alert.alert('Error', message)
-    })
+      socket.once('room_created', ({ room }) => {
+        clearTimeout(timeout)
+        setLoading(false)
+        setRoom(room.code, room, playerId)
+        navigation.navigate('Lobby', { roomCode: room.code })
+      })
+      socket.once('error', ({ message }) => {
+        clearTimeout(timeout)
+        setLoading(false)
+        Alert.alert('Error', message)
+      })
 
-    const doEmit = () => socket.emit('create_room', {
-      player: { id: playerId, name: playerName },
-      timeOption,
+      const doEmit = () => socket.emit('create_room', {
+        player: { id: playerId, name: playerName },
+        timeOption,
+      })
+      if (socket.connected) doEmit()
+      else socket.once('connect', doEmit)
     })
-    if (socket.connected) doEmit()
-    else socket.once('connect', doEmit)
   }
 
   const handleJoin = () => {
@@ -71,33 +88,34 @@ export default function HomeScreen({ navigation }) {
     const code = joinCode.trim().toUpperCase()
     if (!playerName) { Alert.alert('Enter your name'); return }
     if (!code || code.length < 4) { Alert.alert('Enter a valid room code'); return }
-    setLoading(true)
     setIdentity(playerId, playerName)
 
-    const socket = connectSocket()
-    const timeout = setTimeout(() => {
-      setLoading(false)
-      Alert.alert('Connection failed', 'Server took too long to respond.')
-    }, 15000)
+    withPreflight(() => {
+      const socket = connectSocket()
+      const timeout = setTimeout(() => {
+        setLoading(false)
+        Alert.alert('Connection failed', 'Server took too long to respond.')
+      }, 20000)
 
-    socket.once('room_joined', ({ room }) => {
-      clearTimeout(timeout)
-      setLoading(false)
-      setRoom(room.code, room, playerId)
-      navigation.navigate('Lobby', { roomCode: room.code })
-    })
-    socket.once('error', ({ message }) => {
-      clearTimeout(timeout)
-      setLoading(false)
-      Alert.alert('Error', message)
-    })
+      socket.once('room_joined', ({ room }) => {
+        clearTimeout(timeout)
+        setLoading(false)
+        setRoom(room.code, room, playerId)
+        navigation.navigate('Lobby', { roomCode: room.code })
+      })
+      socket.once('error', ({ message }) => {
+        clearTimeout(timeout)
+        setLoading(false)
+        Alert.alert('Error', message)
+      })
 
-    const doEmit = () => socket.emit('join_room', {
-      roomCode: code,
-      player: { id: playerId, name: playerName },
+      const doEmit = () => socket.emit('join_room', {
+        roomCode: code,
+        player: { id: playerId, name: playerName },
+      })
+      if (socket.connected) doEmit()
+      else socket.once('connect', doEmit)
     })
-    if (socket.connected) doEmit()
-    else socket.once('connect', doEmit)
   }
 
   return (

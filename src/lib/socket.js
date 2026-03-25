@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client'
 
-const SOCKET_URL = process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3001'
+export const SOCKET_URL = process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3001'
 
 let socket = null
 
@@ -8,8 +8,8 @@ export const getSocket = () => {
   if (!socket) {
     socket = io(SOCKET_URL, {
       autoConnect: false,
-      transports: ['websocket', 'polling'], // websocket first — bypasses mobile carrier proxies
-      timeout: 10000,
+      transports: ['polling', 'websocket'], // polling first — works through carrier proxies; upgrades to WS when available
+      timeout: 20000,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
