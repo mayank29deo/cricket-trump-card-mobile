@@ -20,6 +20,14 @@ const STAT_ICONS = {
   batting_avg: '🏏', strike_rate: '⚡', centuries: '💯',
   total_runs: '📊', wickets: '🎯', catches: '🤲',
 }
+const IPL_STAT_LABELS = {
+  ipl_runs: 'IPL Runs', ipl_avg: 'IPL Avg', ipl_sr: 'Strike Rate',
+  ipl_wickets: 'Wickets', ipl_economy: 'Economy', ipl_matches: 'Matches',
+}
+const IPL_STAT_ICONS = {
+  ipl_runs: '📊', ipl_avg: '🏏', ipl_sr: '⚡',
+  ipl_wickets: '🎯', ipl_economy: '💰', ipl_matches: '🏟️',
+}
 const RARITY_COLORS = {
   legendary: '#f59e0b', epic: '#8b5cf6', rare: '#3b82f6', common: '#64748b',
 }
@@ -36,7 +44,7 @@ function getAvatarColor(name = '') {
 }
 
 // ─── Mini card component ──────────────────────────────────────────────────────
-function MiniCard({ card, isSelected, isLocked, onPress, highlightStat }) {
+function MiniCard({ card, isSelected, isLocked, onPress, highlightStat, statIcons = STAT_ICONS }) {
   const rarityColor = RARITY_COLORS[card?.rarity] || COLORS.slate
   return (
     <TouchableOpacity
@@ -56,7 +64,7 @@ function MiniCard({ card, isSelected, isLocked, onPress, highlightStat }) {
       <Text style={styles.miniCardCountry}>{card?.country}</Text>
       {highlightStat && (
         <Text style={styles.miniCardHighlight}>
-          {STAT_ICONS[highlightStat]} {fmtVal(card?.stats?.[highlightStat])}
+          {statIcons[highlightStat]} {fmtVal(card?.stats?.[highlightStat])}
         </Text>
       )}
       <View style={styles.miniCardPoints}>
@@ -67,7 +75,7 @@ function MiniCard({ card, isSelected, isLocked, onPress, highlightStat }) {
 }
 
 // ─── Full card (for announced card display) ───────────────────────────────────
-function BigCard({ card, highlightStat }) {
+function BigCard({ card, highlightStat, statLabels = STAT_LABELS, statIcons = STAT_ICONS }) {
   if (!card) return null
   const rarityColor = RARITY_COLORS[card.rarity] || COLORS.slate
   return (
@@ -80,12 +88,12 @@ function BigCard({ card, highlightStat }) {
       </View>
       <Text style={styles.bigCardCountry}>{card.country} • {card.role}</Text>
       <View style={styles.bigCardStats}>
-        {Object.entries(STAT_LABELS).map(([stat, label]) => (
+        {Object.entries(statLabels).map(([stat, label]) => (
           <View
             key={stat}
             style={[styles.bigCardStat, highlightStat === stat && styles.bigCardStatHighlight]}
           >
-            <Text style={styles.bigCardStatIcon}>{STAT_ICONS[stat]}</Text>
+            <Text style={styles.bigCardStatIcon}>{statIcons[stat]}</Text>
             <Text style={styles.bigCardStatLabel}>{label}</Text>
             <Text style={[styles.bigCardStatVal, highlightStat === stat && { color: COLORS.amber }]}>
               {fmtVal(card.stats?.[stat])}
@@ -125,6 +133,11 @@ export default function GameScreen({ navigation, route }) {
   const [roundResult, setRoundResultLocal] = useState(null)
   const [showResult, setShowResult] = useState(false)
   const [opponentSubmits, setOpponentSubmits] = useState({ count: 0, total: 0 })
+  const [lastRound, setLastRound] = useState(false)
+
+  const isIPL = roomData?.deckType === 'ipl'
+  const statLabels = isIPL ? IPL_STAT_LABELS : STAT_LABELS
+  const statIcons  = isIPL ? IPL_STAT_ICONS  : STAT_ICONS
 
   const activePlayerId = roomData?.activePlayerId || currentPhase?.activePlayerId
   const isActivePlayer = activePlayerId === myId
@@ -170,6 +183,8 @@ export default function GameScreen({ navigation, route }) {
 
     socket.on('timer_tick', ({ timeLeft: tl }) => setTimeLeft(tl))
 
+    socket.on('last_round_warning', () => setLastRound(true))
+
     socket.on('game_ended', (data) => setGameEnd(data))
 
     socket.on('error', ({ message }) => Alert.alert('Error', message))
@@ -181,6 +196,7 @@ export default function GameScreen({ navigation, route }) {
       socket.off('round_result')
       socket.off('game_state_update')
       socket.off('timer_tick')
+      socket.off('last_round_warning')
       socket.off('game_ended')
       socket.off('error')
     }
@@ -319,6 +335,16 @@ export default function GameScreen({ navigation, route }) {
         </View>
       </View>
 
+      {/* Last round warning */}
+      {lastRound && (
+        <View style={{ marginHorizontal: 16, marginBottom: 8, paddingVertical: 6, paddingHorizontal: 12,
+          backgroundColor: '#7f1d1d', borderWidth: 1, borderColor: '#ef4444', borderRadius: 8, alignItems: 'center' }}>
+          <Text style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: 13 }}>
+            🏁 LAST ROUND — finish this hand to end the game
+          </Text>
+        </View>
+      )}
+
       {/* Opponents row */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.opponentRow} contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}>
         {opponents.map(op => (
@@ -337,7 +363,7 @@ export default function GameScreen({ navigation, route }) {
       {/* Round result overlay */}
       {showResult && roundResult && (
         <View style={styles.resultOverlay}>
-          <Text style={styles.resultStat}>{STAT_ICONS[roundResult.stat]} {STAT_LABELS[roundResult.stat]}</Text>
+          <Text style={styles.resultStat}>{statIcons[roundResult.stat]} {statLabels[roundResult.stat]}</Text>
           {roundResult.isTie
             ? <Text style={styles.resultTitle}>🤝 TIE — Cards to pile</Text>
             : <Text style={styles.resultTitle}>🏆 {roundResult.winnerId === myId ? 'YOU WIN!' : (roomData?.players?.find(p => p.id === roundResult.winnerId)?.name || '') + ' wins!'}</Text>
@@ -362,7 +388,7 @@ export default function GameScreen({ navigation, route }) {
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
                 {myHand.map(card => (
-                  <MiniCard
+                  <MiniCard statIcons={statIcons}
                     key={card.id}
                     card={card}
                     isSelected={selectedCard?.id === card.id}
@@ -378,7 +404,7 @@ export default function GameScreen({ navigation, route }) {
                   SELECT STAT FOR <Text style={{ color: COLORS.amber }}>{pendingStatCard.name}</Text>
                 </Text>
                 <View style={styles.statGrid}>
-                  {Object.entries(STAT_LABELS).map(([stat, label]) => {
+                  {Object.entries(statLabels).map(([stat, label]) => {
                     const burned = pendingStatCard.usedStats?.includes(stat)
                     return (
                       <TouchableOpacity
@@ -387,7 +413,7 @@ export default function GameScreen({ navigation, route }) {
                         disabled={burned}
                         style={[styles.statBtn, burned && styles.statBtnBurned]}
                       >
-                        <Text style={styles.statBtnIcon}>{burned ? '🔥' : STAT_ICONS[stat]}</Text>
+                        <Text style={styles.statBtnIcon}>{burned ? '🔥' : statIcons[stat]}</Text>
                         <Text style={[styles.statBtnLabel, burned && { color: COLORS.slate }]}>{label}</Text>
                         <Text style={[styles.statBtnVal, burned && { color: '#374151' }]}>
                           {fmtVal(pendingStatCard.stats?.[stat])}
@@ -413,7 +439,7 @@ export default function GameScreen({ navigation, route }) {
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
-                {myHand.map(card => <MiniCard key={card.id} card={card} isLocked />)}
+                {myHand.map(card => <MiniCard key={card.id} card={card} isLocked statIcons={statIcons} />)}
               </View>
             </ScrollView>
           </View>
@@ -426,10 +452,10 @@ export default function GameScreen({ navigation, route }) {
               <Text style={styles.sectionTitle}>Your card is played</Text>
               <PhaseTimer seconds={phaseTimeLeft} phase="opponents_selecting" />
             </View>
-            {announcedCard && <BigCard card={announcedCard} highlightStat={announcedStat} />}
+            {announcedCard && <BigCard card={announcedCard} highlightStat={announcedStat} statLabels={statLabels} statIcons={statIcons} />}
             {announcedStat && (
               <Text style={styles.statAnnounce}>
-                {STAT_ICONS[announcedStat]} {STAT_LABELS[announcedStat]}: {fmtVal(announcedStatValue)}
+                {statIcons[announcedStat]} {statLabels[announcedStat]}: {fmtVal(announcedStatValue)}
               </Text>
             )}
             <Text style={styles.waitingOpponents}>
@@ -447,12 +473,12 @@ export default function GameScreen({ navigation, route }) {
               </Text>
               <PhaseTimer seconds={phaseTimeLeft} phase="opponents_selecting" />
             </View>
-            {announcedCard && <BigCard card={announcedCard} highlightStat={announcedStat} />}
+            {announcedCard && <BigCard card={announcedCard} highlightStat={announcedStat} statLabels={statLabels} statIcons={statIcons} />}
             {announcedStat && (
               <View style={styles.beatThis}>
                 <Text style={styles.beatThisLabel}>Beat this</Text>
                 <Text style={styles.beatThisVal}>
-                  {STAT_ICONS[announcedStat]} {STAT_LABELS[announcedStat]}: {fmtVal(announcedStatValue)}
+                  {statIcons[announcedStat]} {statLabels[announcedStat]}: {fmtVal(announcedStatValue)}
                 </Text>
               </View>
             )}
@@ -466,7 +492,7 @@ export default function GameScreen({ navigation, route }) {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
                     {myHand.map(card => (
-                      <MiniCard
+                      <MiniCard statIcons={statIcons}
                         key={card.id}
                         card={card}
                         onPress={handleOpponentCardPick}
