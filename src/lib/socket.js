@@ -10,12 +10,12 @@ export const setActiveUrl = (url) => { activeUrl = url }
 
 const SOCKET_OPTIONS = {
   autoConnect: false,
-  transports: ['polling', 'websocket'],
+  transports: ['websocket', 'polling'],
   timeout: 20000,
   reconnection: true,
-  reconnectionAttempts: 10,
+  reconnectionAttempts: 15,
   reconnectionDelay: 1000,
-  reconnectionDelayMax: 3000,
+  reconnectionDelayMax: 5000,
 }
 
 export const getSocket = () => {

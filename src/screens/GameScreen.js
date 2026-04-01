@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
   StatusBar, ScrollView, FlatList, Alert, Share, Animated
 } from 'react-native'
-import { getSocket } from '../lib/socket'
+import { getSocket, safeEmit } from '../lib/socket'
 import useGameStore from '../store/gameStore'
 
 const COLORS = {
@@ -134,6 +134,7 @@ export default function GameScreen({ navigation, route }) {
   const [showResult, setShowResult] = useState(false)
   const [opponentSubmits, setOpponentSubmits] = useState({ count: 0, total: 0 })
   const [lastRound, setLastRound] = useState(false)
+  const [connected, setConnected] = useState(true)
 
   const isIPL = roomData?.deckType === 'ipl'
   const statLabels = isIPL ? IPL_STAT_LABELS : STAT_LABELS
@@ -149,6 +150,13 @@ export default function GameScreen({ navigation, route }) {
 
   useEffect(() => {
     const socket = getSocket()
+
+    socket.on('connect', () => {
+      setConnected(true)
+      socket.emit('join_room', { roomCode, player: { id: myId, name: roomData?.players?.find(p => p.id === myId)?.name || '' } })
+    })
+
+    socket.on('disconnect', () => setConnected(false))
 
     socket.on('phase_changed', (phaseData) => {
       setPhase(phaseData)
@@ -190,6 +198,8 @@ export default function GameScreen({ navigation, route }) {
     socket.on('error', ({ message }) => Alert.alert('Error', message))
 
     return () => {
+      socket.off('connect')
+      socket.off('disconnect')
       socket.off('phase_changed')
       socket.off('phase_timer_tick')
       socket.off('opponent_selection_update')
@@ -211,15 +221,13 @@ export default function GameScreen({ navigation, route }) {
   const handleSelectStat = useCallback((stat) => {
     if (!isActivePlayer || !selectedCard) return
     if (selectedCard.usedStats?.includes(stat)) return
-    const socket = getSocket()
-    socket.emit('select_card_stat', { roomCode, playerId: myId, cardId: selectedCard.id, stat })
+    safeEmit('select_card_stat', { roomCode, playerId: myId, cardId: selectedCard.id, stat })
     setPendingStatCard(null)
   }, [isActivePlayer, selectedCard, roomCode, myId])
 
   const handleOpponentCardPick = useCallback((card) => {
     if (isActivePlayer || gamePhase !== 'opponents_selecting' || hasSubmittedCard) return
-    const socket = getSocket()
-    socket.emit('select_opponent_card', { roomCode, playerId: myId, cardId: card.id })
+    safeEmit('select_opponent_card', { roomCode, playerId: myId, cardId: card.id })
     markCardSubmitted(card)
   }, [isActivePlayer, gamePhase, hasSubmittedCard, roomCode, myId])
 
@@ -334,6 +342,16 @@ export default function GameScreen({ navigation, route }) {
           <Text style={styles.timerText}>⏱ {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</Text>
         </View>
       </View>
+
+      {/* Reconnecting banner */}
+      {!connected && (
+        <View style={{ marginHorizontal: 16, marginBottom: 4, paddingVertical: 6, paddingHorizontal: 12,
+          backgroundColor: '#1c1400', borderWidth: 1, borderColor: COLORS.amber, borderRadius: 8, alignItems: 'center' }}>
+          <Text style={{ color: COLORS.amber, fontWeight: 'bold', fontSize: 13 }}>
+            📶 Reconnecting...
+          </Text>
+        </View>
+      )}
 
       {/* Last round warning */}
       {lastRound && (
@@ -532,7 +550,7 @@ const styles = StyleSheet.create({
   timerChip: { marginLeft: 'auto', backgroundColor: COLORS.card, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   timerText: { color: COLORS.white, fontSize: 12, fontWeight: '600' },
 
-  opponentRow: { maxHeight: 90, paddingVertical: 8 },
+  opponentRow: { maxHeight: 110, paddingVertical: 8 },
   opponentCard: { alignItems: 'center', gap: 2, minWidth: 56 },
   opAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   opAvatarText: { color: '#fff', fontWeight: '700', fontSize: 14 },
@@ -555,14 +573,14 @@ const styles = StyleSheet.create({
   phaseTimerUrgent: { borderColor: COLORS.red + '80', backgroundColor: COLORS.red + '15' },
   phaseTimerText: { fontSize: 12, fontWeight: '700' },
 
-  miniCard: { width: 90, backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1.5, padding: 8, gap: 3 },
-  miniCardRarity: { width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' },
-  miniCardRarityText: { color: '#000', fontSize: 9, fontWeight: '900' },
-  miniCardName: { color: COLORS.white, fontSize: 11, fontWeight: '700' },
-  miniCardCountry: { color: COLORS.slate, fontSize: 9 },
-  miniCardHighlight: { color: COLORS.amber, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  miniCard: { width: 120, backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1.5, padding: 10, gap: 4 },
+  miniCardRarity: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' },
+  miniCardRarityText: { color: '#000', fontSize: 10, fontWeight: '900' },
+  miniCardName: { color: COLORS.white, fontSize: 13, fontWeight: '700' },
+  miniCardCountry: { color: COLORS.slate, fontSize: 11 },
+  miniCardHighlight: { color: COLORS.amber, fontSize: 12, fontWeight: '700', marginTop: 2 },
   miniCardPoints: { marginTop: 2 },
-  miniCardPts: { fontSize: 10, fontWeight: '700' },
+  miniCardPts: { fontSize: 11, fontWeight: '700' },
 
   bigCard: { backgroundColor: COLORS.card, borderRadius: 14, borderWidth: 1.5, overflow: 'hidden' },
   bigCardHeader: { padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -580,7 +598,7 @@ const styles = StyleSheet.create({
   statPicker: { backgroundColor: COLORS.card, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: COLORS.border },
   statPickerLabel: { color: COLORS.slate, fontSize: 11, fontWeight: '600', letterSpacing: 1, textAlign: 'center', marginBottom: 10 },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  statBtn: { width: '47%', backgroundColor: '#0d1f3c', borderRadius: 10, borderWidth: 1, borderColor: '#1e4060', padding: 10 },
+  statBtn: { width: '30%', backgroundColor: '#0d1f3c', borderRadius: 10, borderWidth: 1, borderColor: '#1e4060', padding: 10 },
   statBtnBurned: { opacity: 0.5, borderColor: '#3f0000', backgroundColor: '#1a0000' },
   statBtnIcon: { fontSize: 16, marginBottom: 2 },
   statBtnLabel: { color: COLORS.slate, fontSize: 10, fontWeight: '600' },

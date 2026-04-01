@@ -2,6 +2,7 @@ import React from 'react'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { StatusBar } from 'expo-status-bar'
+import LandingScreen from './src/screens/LandingScreen'
 import HomeScreen from './src/screens/HomeScreen'
 import LobbyScreen from './src/screens/LobbyScreen'
 import GameScreen from './src/screens/GameScreen'
@@ -19,6 +20,7 @@ export default function App() {
           contentStyle: { backgroundColor: '#0a1628' },
         }}
       >
+        <Stack.Screen name="Landing" component={LandingScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Lobby" component={LobbyScreen} />
         <Stack.Screen name="Game" component={GameScreen} />
