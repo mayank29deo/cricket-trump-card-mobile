@@ -386,11 +386,15 @@ export default function GameScreen({ navigation, route }) {
             ? <Text style={styles.resultTitle}>🤝 TIE — Cards to pile</Text>
             : <Text style={styles.resultTitle}>🏆 {roundResult.winnerId === myId ? 'YOU WIN!' : (roomData?.players?.find(p => p.id === roundResult.winnerId)?.name || '') + ' wins!'}</Text>
           }
-          {Object.entries(roundResult.cards || {}).map(([pid, data]) => (
-            <Text key={pid} style={{ color: pid === roundResult.winnerId ? COLORS.amber : COLORS.slate, fontSize: 13 }}>
-              {roomData?.players?.find(p => p.id === pid)?.name?.split(' ')[0]}: {fmtVal(data.statValue)}
-            </Text>
-          ))}
+          {Object.entries(roundResult.cards || {}).map(([pid, data]) => {
+            const pts = roundResult.roundPointsAwarded?.[pid]
+            return (
+              <Text key={pid} style={{ color: pid === roundResult.winnerId ? COLORS.amber : COLORS.slate, fontSize: 13 }}>
+                {roomData?.players?.find(p => p.id === pid)?.name?.split(' ')[0]}: {fmtVal(data.statValue)}
+                {pts != null ? `  +${pts}pts` : ''}
+              </Text>
+            )
+          })}
         </View>
       )}
 
